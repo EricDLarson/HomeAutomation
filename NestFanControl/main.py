@@ -59,8 +59,6 @@ def process_nest_event(request: Request):
             print("No JSON payload received")
             return "Bad Request: No JSON payload", 400
 
-        #print(f"Received envelope: {envelope}")
-
         # Extract the Pub/Sub message
         if 'message' not in envelope:
             print("No message field in request")
@@ -98,11 +96,20 @@ def process_nest_event(request: Request):
             print("Not a resource update event. Exiting.")
             return "OK: Event ignored", 204
 
-        hvac_update = data["resourceUpdate"]["traits"].get("sdm.devices.traits.ThermostatHvac")
-        if not hvac_update:
-            #print("Not an HVAC trait update. Exiting.")
+        traits = data["resourceUpdate"]["traits"]
+        
+        # IMPORTANT FIX: Only process HVAC trait updates, ignore Fan trait updates
+        if "sdm.devices.traits.ThermostatHvac" not in traits:
+            print("Not an HVAC trait update. Exiting.")
+            return "OK: Event ignored", 204
+            
+        # Also ignore if this event ONLY contains Fan trait updates
+        if "sdm.devices.traits.Fan" in traits and "sdm.devices.traits.ThermostatHvac" not in traits:
+            print("Fan-only trait update, ignoring.")
             return "OK: Event ignored", 204
 
+        hvac_update = traits["sdm.devices.traits.ThermostatHvac"]
+        
         # The trigger condition: HVAC status has just become "OFF"
         current_status = hvac_update.get("status")
         if current_status == "OFF":
